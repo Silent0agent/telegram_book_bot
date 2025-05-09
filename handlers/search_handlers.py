@@ -4,7 +4,7 @@ from aiogram import F, Router
 from aiogram.filters import StateFilter, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import default_state
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from database.models import Book, Genre
@@ -155,10 +155,13 @@ async def process_search(event: Union[Message, CallbackQuery], state: FSMContext
                                 active_search_results_message_id=new_message.message_id)
         await state.set_state(default_state)
     else:
-        await message.answer(LEXICON['no_books_found'])
         if current_state == 'search_all' or current_state == 'search_user_books':
+            await message.answer(LEXICON['no_books_found'], reply_markup=
+            InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text=LEXICON['add_book'], callback_data='add_book')]]))
             await state.set_state(default_state)
-
+        else:
+            await message.answer(LEXICON['no_books_found'])
 
 
 @router.callback_query(F.data.in_(['search_results_backward', 'search_results_forward']))

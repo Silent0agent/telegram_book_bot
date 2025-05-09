@@ -50,7 +50,7 @@ async def process_book_review(callback: CallbackQuery, state: FSMContext, sessio
     new_message = await callback.message.answer(
         f"Пользователь: {review_uploader.first_name} {review_uploader.last_name}\n"
         f"Книга: {review.book.author} — {review.book.title}\n"
-        f"Рейтинг: {rating}\n"
+        f"Оценка: {rating}\n"
         f"Мнение о книге: {review.text}",
         reply_markup=create_reviews_keyboard(1, len(reviews), review,
                                              is_user_review=is_user_review))
@@ -85,7 +85,7 @@ async def process_move_reviews_list(callback: CallbackQuery, state: FSMContext):
     new_message = await callback.message.edit_text(
         f"Пользователь: {review_uploader.first_name} {review_uploader.last_name}\n"
         f"Книга: {review.book.author} — {review.book.title}\n"
-        f"Рейтинг: {rating}\n"
+        f"Оценка: {rating}\n"
         f"Мнение о книге: {review.text}",
         reply_markup=create_reviews_keyboard(current_page, len(reviews_results_dict['reviews']), review,
                                              is_user_review=is_user_review))
@@ -107,7 +107,7 @@ async def process_view_review(callback: CallbackQuery, session: AsyncSession):
     await callback.message.answer(
         f"Пользователь: {review_uploader.first_name} {review_uploader.last_name}\n"
         f"Книга: {review.book.author} — {review.book.title}\n"
-        f"Рейтинг: {rating}\n"
+        f"Оценка: {rating}\n"
         f"Мнение о книге: {review.text}",
         reply_markup=
         InlineKeyboardMarkup(inline_keyboard=[[

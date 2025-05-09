@@ -63,6 +63,8 @@ async def process_book_cover(callback: CallbackQuery, session: AsyncSession):
         await callback.message.answer('Книга не найдена')
         return
     genres_string = ', '.join([i.name for i in book_view.genres])
+    if not genres_string:
+        genres_string = 'Нет жанров'
     rating = book_view.average_rating
     if rating == 0.0:
         rating = 'Нет отзывов'
@@ -234,6 +236,36 @@ async def process_page(
     await show_page(event, page_num, state, session)
 
 
+@router.callback_query(F.data == 'add_bookmark')
+async def process_add_bookmark(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    data = await state.get_data()
+
+    active_reading_message_id = data.get("active_reading_message_id")
+    if callback.message.message_id != active_reading_message_id:
+        await callback.answer(LEXICON['old_message_alert'], show_alert=True)
+        return
+
+    current_book_dict = data['current_book']
+    current_page = current_book_dict['current_page']
+    total_pages = current_book_dict['total_pages']
+    book_id = current_book_dict['book'].book_id
+    page = await sqlite_get_page_by_book_id_and_page_num(session, book_id, current_book_dict['current_page'])
+    if not page:
+        await callback.message.answer("Страница не найдена")
+        return
+    bookmark = Bookmark(user_id=callback.from_user.id,
+                        book_id=book_id,
+                        page_number=current_page,
+                        note=page.text[:100])
+    session.add(bookmark)
+    await session.commit()
+    await callback.message.edit_text(
+        text=page.text,
+        reply_markup=create_book_pagination_keyboard(current_page, total_pages, bookmark)
+    )
+    await state.update_data(current_book=current_book_dict)
+
+
 @router.callback_query(F.data.startswith('book_delete_bookmark'))
 async def process_delete_bookmark_in_book(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
     await callback.answer()
@@ -261,35 +293,5 @@ async def process_delete_bookmark_in_book(callback: CallbackQuery, state: FSMCon
     await callback.message.edit_text(
         text=page.text,
         reply_markup=create_book_pagination_keyboard(current_page, total_pages, None)
-    )
-    await state.update_data(current_book=current_book_dict)
-
-
-@router.callback_query(F.data == 'add_bookmark')
-async def process_add_bookmark(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
-    data = await state.get_data()
-
-    active_reading_message_id = data.get("active_reading_message_id")
-    if callback.message.message_id != active_reading_message_id:
-        await callback.answer(LEXICON['old_message_alert'], show_alert=True)
-        return
-
-    current_book_dict = data['current_book']
-    current_page = current_book_dict['current_page']
-    total_pages = current_book_dict['total_pages']
-    book_id = current_book_dict['book'].book_id
-    page = await sqlite_get_page_by_book_id_and_page_num(session, book_id, current_book_dict['current_page'])
-    if not page:
-        await callback.message.answer("Страница не найдена")
-        return
-    bookmark = Bookmark(user_id=callback.from_user.id,
-                        book_id=book_id,
-                        page_number=current_page,
-                        note=page.text[:100])
-    session.add(bookmark)
-    await session.commit()
-    await callback.message.edit_text(
-        text=page.text,
-        reply_markup=create_book_pagination_keyboard(current_page, total_pages, bookmark)
     )
     await state.update_data(current_book=current_book_dict)

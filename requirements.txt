@@ -1,0 +1,5 @@
+aiofiles==24.1.0
+aiogram==3.20.0.post0
+chardet==5.2.0
+environs==14.1.1
+SQLAlchemy==2.0.40

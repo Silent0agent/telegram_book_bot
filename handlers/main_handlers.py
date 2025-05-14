@@ -44,19 +44,19 @@ async def process_bookmarks(event: Union[Message, CallbackQuery], state: FSMCont
         await state.set_state(default_state)
     else:
         if isinstance(event, Message):
-            await event.answer(LEXICON['no_bookmarks_found'])
+            await event.answer(LEXICON['no_bookmarks'])
         else:
             await event.answer()
-            await event.message.answer(LEXICON['no_bookmarks_found'])
+            await event.message.answer(LEXICON['no_bookmarks'])
 
 
-@router.message(Command('continue_reading'))
+@router.message(Command('continue'))
 async def process_continue_book(message: Message, state: FSMContext, session: AsyncSession):
     data = await state.get_data()
     current_book_dict = data.get('current_book')
 
     if not current_book_dict:
-        await message.answer("❌ Нет активной книги для продолжения чтения")
+        await message.answer(LEXICON['no_active_book'])
         return
 
     # Берем последнюю открытую страницу или начинаем с первой
@@ -64,9 +64,13 @@ async def process_continue_book(message: Message, state: FSMContext, session: As
 
     await show_page(message, page_num, state, session)
 
-
+@router.message(Command('search'))
 @router.callback_query(F.data == 'start_search')
-async def process_start_search(callback: CallbackQuery):
-    await callback.answer()
-    await callback.message.edit_text(LEXICON['choose_search'],
+async def process_start_search(event: Union[Message, CallbackQuery]):
+    if isinstance(event, Message):
+        await event.answer(LEXICON['choose_search'],
                                      reply_markup=create_choose_search_keyboard())
+    else:
+        await event.answer()
+        await event.message.edit_text(LEXICON['choose_search'],
+                                         reply_markup=create_choose_search_keyboard())

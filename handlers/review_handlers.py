@@ -1,3 +1,4 @@
+import logging
 from aiogram import F, Router
 from aiogram.filters import Command, StateFilter, or_f
 from aiogram.fsm.context import FSMContext
@@ -5,7 +6,6 @@ from aiogram.fsm.state import default_state
 from aiogram.types import CallbackQuery, Message, InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-
 from database.models import Book, Review
 from keyboards.reviews_kb import create_reviews_keyboard
 from lexicon.lexicon import LEXICON
@@ -14,6 +14,7 @@ from services.database_services import sqlite_get_reviews_with_users_book_by_boo
 from states.states import FSMCreateReview
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 
 @router.callback_query(or_f(F.data.startswith('book_reviews'),
@@ -23,7 +24,7 @@ async def process_book_review(callback: CallbackQuery, state: FSMContext, sessio
     if callback.data == 'user_reviews':
         reviews = await sqlite_get_reviews_with_user_books_by_user_id(session, callback.from_user.id)
         if not reviews:
-            await callback.message.answer('У вас нет отзывов.')
+            await callback.message.answer(LEXICON['no_user_reviews'])
             return
     elif callback.data.startswith('book_reviews'):
         book_id = int(callback.data.split('_')[-1])
@@ -32,11 +33,11 @@ async def process_book_review(callback: CallbackQuery, state: FSMContext, sessio
             .where(Book.book_id == book_id)
         )
         if not book:
-            await callback.message.answer('Книга не найдена')
+            await callback.message.answer(LEXICON['book_not_found'])
             return
         reviews = await sqlite_get_reviews_with_users_book_by_book_id(session, book_id)
         if not reviews:
-            await callback.message.answer('У этой книги нет отзывов. Оставьте отзыв первым!')
+            await callback.message.answer(LEXICON['no_book_reviews'])
             return
 
     reviews_results_dict = {'reviews': reviews,
@@ -76,7 +77,7 @@ async def process_move_reviews_list(callback: CallbackQuery, state: FSMContext):
     current_page = reviews_results_dict['current_page']
     review = reviews_results_dict['reviews'][current_page - 1]
     if not review:
-        await callback.message.answer('Отзыв не найден')
+        await callback.message.answer(LEXICON['review_not_found'])
         return
     rating = review.rating
     rating = f"{round(rating, 2)} {LEXICON[f'rating_{round(rating)}']}"
@@ -99,7 +100,7 @@ async def process_view_review(callback: CallbackQuery, session: AsyncSession):
     review_id = int(callback.data.split('_')[-1])
     review = await sqlite_get_review_with_user_book_by_review_id(session, review_id)
     if not review:
-        await callback.message.answer('Отзыв не найден')
+        await callback.message.answer(LEXICON['review_not_found'])
         return
     review_uploader = review.user
     rating = review.rating
@@ -111,8 +112,8 @@ async def process_view_review(callback: CallbackQuery, session: AsyncSession):
         f"Мнение о книге: {review.text}",
         reply_markup=
         InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text='Редактировать отзыв', callback_data=f'create_review_{review.book_id}')
-        ], [InlineKeyboardButton(text='Удалить отзыв', callback_data=f'delete_review_{review_id}')]]))
+            InlineKeyboardButton(text=LEXICON['redact_review'], callback_data=f'create_review_{review.book_id}')
+        ], [InlineKeyboardButton(text=LEXICON['delete_review'], callback_data=f'delete_review_{review_id}')]]))
 
 
 @router.callback_query(F.data.startswith('delete_review'))
@@ -121,14 +122,14 @@ async def process_delete_review(callback: CallbackQuery, session: AsyncSession):
     review_id = int(callback.data.split('_')[-1])
     review = await session.scalar(select(Review).where(Review.review_id == review_id))
     if not review:
-        await callback.message.answer('Отзыв не найден')
+        await callback.message.answer(LEXICON['review_not_found'])
         return
     if review.user_id != callback.from_user.id:
-        await callback.message.answer('Вы не вправе удалять этот отзыв')
+        await callback.message.answer(LEXICON['no_access_to_delete_review'])
         return
     await session.delete(review)
     await session.commit()
-    await callback.message.answer('Отзыв успешно удалён')
+    await callback.message.answer(LEXICON['review_delete_success'])
 
 
 @router.callback_query(F.data.startswith('create_review'))
@@ -137,7 +138,7 @@ async def process_add_review(callback: CallbackQuery, state: FSMContext, session
     book_id = int(callback.data.split('_')[-1])
     book = await session.scalar(select(Book).where(Book.book_id == book_id))
     if not book:
-        await callback.message.answer('Книга не найдена')
+        await callback.message.answer(LEXICON['book_not_found'])
         return
     await state.update_data(add_review={'book_id': book_id})
     await callback.message.answer(
@@ -156,7 +157,7 @@ async def process_cancel_add_review(message: Message, state: FSMContext):
         await message.answer(LEXICON['canceled_create_review'])
         await state.set_state(default_state)
     except Exception as e:
-        print(f"Error canceling review creation: {e}")
+        logger.exception(f"Error canceling review creation: {e}")
         await message.answer("❌ Произошла ошибка при отмене создания отзыва")
 
 
@@ -166,7 +167,7 @@ async def process_add_review_rating(message: Message, state: FSMContext):
         rating = message.text.replace(',', '.').strip()
 
         if not rating:
-            await message.answer("❌ Пожалуйста, введите оценку от 1 до 5")
+            await message.answer(LEXICON['ask_for_review_rating'])
             return
 
         try:
@@ -186,7 +187,7 @@ async def process_add_review_rating(message: Message, state: FSMContext):
         await state.set_state(FSMCreateReview.text)
 
     except Exception as e:
-        print(f"Error processing review rating: {e}")
+        logger.exception(f"Error processing review rating: {e}")
         await message.answer("❌ Произошла ошибка при обработке оценки")
 
 
@@ -195,14 +196,14 @@ async def process_add_review_text(message: Message, state: FSMContext, session: 
     try:
         text = message.text.strip()
         if not text:
-            await message.answer("❌ Текст отзыва не может быть пустым")
+            await message.answer(LEXICON['empty_review_warning'])
             return
 
         data = await state.get_data()
         add_review_dict = data.get('add_review', {})
 
         if 'book_id' not in add_review_dict or 'fill_rating' not in add_review_dict:
-            await message.answer("❌ Данные отзыва повреждены. Начните заново.")
+            await message.answer(LEXICON['review_data_damaged'])
             await state.set_state(default_state)
             return
 
@@ -233,13 +234,13 @@ async def process_add_review_text(message: Message, state: FSMContext, session: 
         # Формируем клавиатуру для возврата
         keyboard = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(
-                text='Перейти к обложке книги',
+                text='Перейти к обложке',
                 callback_data=f"view_book_{add_review_dict['book_id']}"
             )
         ]])
 
         await message.answer(
-            text='✅ Отзыв успешно сохранен!',
+            text=LEXICON['create_review_success'],
             reply_markup=keyboard
         )
 
@@ -251,5 +252,5 @@ async def process_add_review_text(message: Message, state: FSMContext, session: 
 
     except Exception as e:
         await session.rollback()
-        print(f"Error saving review: {e}")
+        logger.exception(f"Error saving review: {e}")
         await message.answer("❌ Произошла ошибка при сохранении отзыва")

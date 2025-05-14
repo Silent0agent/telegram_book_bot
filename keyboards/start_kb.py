@@ -2,6 +2,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from lexicon.lexicon import LEXICON
 
+
 def create_start_keyboard() -> InlineKeyboardMarkup:
     kb_builder = InlineKeyboardBuilder()
     kb_builder.row(
@@ -20,6 +21,10 @@ def create_start_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(
             text=LEXICON['user_reviews'],
             callback_data='user_reviews'
+        ),
+        InlineKeyboardButton(
+            text=LEXICON['user_audiobooks'],
+            callback_data='user_audiobooks'
         ),
         width=1
     )

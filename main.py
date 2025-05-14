@@ -8,11 +8,14 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from config_data.config import Config, load_config
 from database import db_session
+from database.db_session import create_session
+from database.init_db import init_genres
 from handlers import other_handlers, main_handlers, read_book_handlers, search_handlers, \
-    add_book_handlers, bookmarks_handlers, review_handlers
+    add_book_handlers, bookmarks_handlers, review_handlers, audiobook_handlers
 from keyboards.main_menu import set_main_menu
 from middlewares.outer import DatabaseMiddleware, UserMiddleware, StateValidationMiddleware, \
     SearchValidationMiddleware, StateResetMiddleware
+
 # Инициализируем логгер
 logger = logging.getLogger(__name__)
 
@@ -32,6 +35,8 @@ async def main():
     config: Config = load_config()
     storage = MemoryStorage()
     await db_session.global_init('database/books.db')
+    session = await create_session()
+    await init_genres(session)
     # Инициализируем бот и диспетчер
     bot = Bot(
         token=config.tg_bot.token,
@@ -55,6 +60,7 @@ async def main():
     dp.include_router(main_handlers.router)
     dp.include_router(add_book_handlers.router)
     dp.include_router(review_handlers.router)
+    dp.include_router(audiobook_handlers.router)
     dp.include_router(search_handlers.router)
     dp.include_router(bookmarks_handlers.router)
     dp.include_router(read_book_handlers.router)

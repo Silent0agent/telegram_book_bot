@@ -4,6 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from database.models import Book
 from keyboards.book_pagination_kb import create_book_pagination_keyboard
 from services.database_services import sqlite_get_page_by_book_id_and_page_num, sqlite_get_bookmark_or_none
 
@@ -53,3 +54,18 @@ async def show_page(
     )
 
     return msg
+
+
+async def filter_public_book(book: Book, user_id: int) -> bool:
+    if not book.is_public:
+        if book.uploader_id != user_id:
+            return False
+    return True
+
+
+async def filter_public_books(books: list[Book], user_id: int) -> list[Book]:
+    filtered_books = []
+    for book in books:
+        if await filter_public_book(book, user_id):
+            filtered_books.append(book)
+    return filtered_books

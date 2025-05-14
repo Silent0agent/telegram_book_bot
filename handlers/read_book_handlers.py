@@ -1,3 +1,4 @@
+import logging
 from typing import Union
 from aiogram import F, Router
 from aiogram.filters import Command, or_f, CommandObject
@@ -6,15 +7,17 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from database.models import Bookmark, Book, Page, Review, Audiobook, book_genre
-from keyboards.book_view import create_book_view_keyboard
+from keyboards.book_view_kb import create_book_view_keyboard
 from keyboards.book_pagination_kb import create_book_pagination_keyboard
 from lexicon.lexicon import LEXICON
 from services.database_services import sqlite_get_total_book_pages, sqlite_get_page_by_book_id_and_page_num, \
-    sqlite_get_bookmark_or_none, sqlite_get_book_with_genres_audio_reviews_by_book_id
-from services.file_handling import load_cover
+    sqlite_get_bookmark_or_none, sqlite_get_book_with_genres_audio_reviews_by_book_id, \
+    sqlite_get_audiobook_ids_by_book_id
+from services.file_handling import load_cover, delete_book_files
 from services.handlers_services import show_page
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 
 @router.callback_query(F.data.startswith('delete_book_'))
@@ -30,12 +33,14 @@ async def process_delete_book(callback: CallbackQuery, session: AsyncSession):
         )
 
         if not book:
-            await callback.message.answer('Книга не найдена')
+            await callback.message.answer(LEXICON['book_not_found'])
             return
 
         if book.uploader_id != callback.from_user.id:
-            await callback.message.answer('У вас нет прав на удаление этой книги')
+            await callback.message.answer(LEXICON['no_access_to_delete_book'])
             return
+        audiobook_ids = await sqlite_get_audiobook_ids_by_book_id(session, book_id)
+        delete_book_files(book_id, audiobook_ids)
 
         # Удаляем связанные объекты явно
         await session.execute(delete(Bookmark).where(Bookmark.book_id == book_id))
@@ -46,11 +51,11 @@ async def process_delete_book(callback: CallbackQuery, session: AsyncSession):
         await session.delete(book)
         await session.commit()
 
-        await callback.message.answer('Книга и все связанные данные успешно удалены')
+        await callback.message.answer(LEXICON['book_delete_success'])
 
     except Exception as e:
         await session.rollback()
-        print(f"Ошибка при удалении книги: {e}")
+        logger.exception(f"Ошибка при удалении книги: {e}")
         await callback.message.answer('Произошла ошибка при удалении книги')
 
 
@@ -60,7 +65,7 @@ async def process_book_cover(callback: CallbackQuery, session: AsyncSession):
     book_id = int(callback.data.split('_')[-1])
     book_view = await sqlite_get_book_with_genres_audio_reviews_by_book_id(session, book_id)
     if not book_view:
-        await callback.message.answer('Книга не найдена')
+        await callback.message.answer(LEXICON['book_not_found'])
         return
     genres_string = ', '.join([i.name for i in book_view.genres])
     if not genres_string:
@@ -76,8 +81,6 @@ async def process_book_cover(callback: CallbackQuery, session: AsyncSession):
             f'Жанры: {genres_string}\n'
             f'Рейтинг: {rating}')
     cover_file = await load_cover(book_view.book_id)
-    # has_audio = True if book.audiobooks else False
-    has_audio = False
     review = await session.scalar(select(Review).where(
         Review.book_id == book_view.book_id,
         Review.user_id == callback.from_user.id
@@ -86,7 +89,7 @@ async def process_book_cover(callback: CallbackQuery, session: AsyncSession):
     await callback.message.answer_photo(
         photo=cover_file,
         caption=text,
-        reply_markup=create_book_view_keyboard(book_view.book_id, has_audio=has_audio, is_user_book=is_user_book,
+        reply_markup=create_book_view_keyboard(book_view.book_id, is_user_book=is_user_book,
                                                user_review=review))
 
 
@@ -116,7 +119,7 @@ async def process_book_or_bookmark(
             # Режим открытия закладки
             bookmark = await session.scalar(select(Bookmark).where(Bookmark.bookmark_id == object_id))
             if not bookmark:
-                await callback.message.answer("🔖 Закладка не найдена")
+                await callback.message.answer(LEXICON['bookmark_not_found'])
                 return
 
             book_id = bookmark.book_id
@@ -125,12 +128,12 @@ async def process_book_or_bookmark(
         # Общая логика для обоих случаев
         book = await session.scalar(select(Book).where(Book.book_id == book_id))
         if not book:
-            await callback.message.answer("📕 Книга не найдена")
+            await callback.message.answer(LEXICON['book_not_found'])
             return
 
         total_pages = await sqlite_get_total_book_pages(session, book_id)
         if total_pages < 1:
-            await callback.message.answer("📖 В книге нет страниц")
+            await callback.message.answer(LEXICON['no_pages_in_book'])
             return
 
         page = await sqlite_get_page_by_book_id_and_page_num(
@@ -175,9 +178,9 @@ async def process_book_or_bookmark(
 
     except ValueError as e:
         await callback.message.answer("⚠️ Неверный формат команды")
-        print(e)
+        logger.exception(e)
     except Exception as e:
-        print(f"Ошибка: {e}")
+        logger.exception(f"Ошибка: {e}")
         await callback.message.answer("⚠️ Произошла ошибка")
 
 
@@ -205,7 +208,7 @@ async def process_current_book(callback: CallbackQuery, state: FSMContext, sessi
                                                  book_id, current_page)
 
     if not page:
-        await callback.message.answer("Страница не найдена")
+        await callback.message.answer(LEXICON['page_not_found'])
         return
 
     await callback.message.edit_text(
@@ -226,12 +229,12 @@ async def process_page(
     # Определяем номер страницы
     if isinstance(event, Message):
         if not command or not command.args or not command.args.isdigit():
-            await event.answer("Используйте: /page &lt;номер&gt;")
+            await event.answer(LEXICON['command_page_hint'])
             return
         page_num = int(command.args)
     else:
         page_num = int(event.data.split('_')[1])
-        await event.answer()  # Убираем "часики" у кнопки
+        await event.answer()
 
     await show_page(event, page_num, state, session)
 
@@ -251,7 +254,7 @@ async def process_add_bookmark(callback: CallbackQuery, state: FSMContext, sessi
     book_id = current_book_dict['book'].book_id
     page = await sqlite_get_page_by_book_id_and_page_num(session, book_id, current_book_dict['current_page'])
     if not page:
-        await callback.message.answer("Страница не найдена")
+        await callback.message.answer(LEXICON['page_not_found'])
         return
     bookmark = Bookmark(user_id=callback.from_user.id,
                         book_id=book_id,
@@ -287,7 +290,7 @@ async def process_delete_bookmark_in_book(callback: CallbackQuery, state: FSMCon
     page = await sqlite_get_page_by_book_id_and_page_num(session, (book_id, current_book_dict['current_page']))
 
     if not page:
-        await callback.message.answer("Страница не найдена")
+        await callback.message.answer(LEXICON['page_not_found'])
         return
 
     await callback.message.edit_text(

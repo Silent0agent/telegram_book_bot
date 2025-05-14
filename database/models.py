@@ -81,9 +81,9 @@ class Audiobook(SqlAlchemyBase):
     audiobook_id = Column(Integer, primary_key=True, autoincrement=True)
     book_id = Column(Integer, ForeignKey("books.book_id"))  # Связь с книгой
     title = Column(String(255))  # Название аудиоверсии (может отличаться от текстовой)
-    audio_url = Column(String(512), nullable=False)  # Ссылка на файл
-    duration_seconds = Column(Integer)  # Длительность в секундах
-    language = Column(String(50), default="ru")  # Язык озвучки
+    audio_url = Column(String(512))  # Ссылка на файл
+    # duration_seconds = Column(Integer)  # Длительность в секундах
+    # language = Column(String(50), default="ru")  # Язык озвучки
     uploader_id = Column(BigInteger, ForeignKey("users.user_id"))  # Кто загрузил
 
     book = relationship("Book", back_populates="audiobooks")

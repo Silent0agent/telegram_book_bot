@@ -1,11 +1,5 @@
 from aiogram.fsm.state import StatesGroup, State
 
-
-class FSMStartMenu(StatesGroup):
-    start_menu = State()
-    choose_search = State()
-
-
 class FSMSearchBook(StatesGroup):
     search_by_title_and_author = State()
     search_by_title = State()
@@ -27,4 +21,7 @@ class FSMAddBook(StatesGroup):
     fill_is_public = State()
     upload_cover = State()
     upload_text_file = State()
-    added = State()
+    # added = State()
+class FSMAddAudiobook(StatesGroup):
+    fill_title = State()
+    upload_audio = State()

@@ -14,6 +14,7 @@ from lexicon.lexicon import LEXICON
 from services.database_services import sqlite_search_books_by_title, \
     sqlite_search_books_by_author, sqlite_get_books_by_genre, \
     sqlite_search_books_by_any_field, sqlite_search_books_by_description
+from services.handlers_services import filter_public_books
 from states.states import FSMSearchBook
 
 router = Router()
@@ -39,7 +40,7 @@ async def process_choose_search(callback: CallbackQuery, state: FSMContext, sess
         all_genres = await session.execute(select(Genre))
         all_genres = all_genres.scalars().all()
         if not all_genres:
-            await callback.message.answer("❌ Нет доступных жанров. Обратитесь к администратору")
+            await callback.message.answer(LEXICON['no_genres_in_database'])
             await state.set_state(default_state)
             return
         genres_list_length = ceil(len(all_genres) / 16)
@@ -75,7 +76,7 @@ async def process_choose_genre(callback: CallbackQuery, state: FSMContext, sessi
     genres_list_page = search_by_genres_dict['current_page']
     all_genres = await session.execute(select(Genre))
     if not all_genres:
-        await callback.message.answer("❌ Нет доступных жанров. Обратитесь к администратору")
+        await callback.message.answer(LEXICON['no_genres_in_database'])
         await state.set_state(default_state)
         return
     all_genres = all_genres.scalars().all()
@@ -140,7 +141,7 @@ async def process_search(event: Union[Message, CallbackQuery], state: FSMContext
         search_user_books = True
     else:
         books = None
-
+    books = await filter_public_books(books, event.from_user.id)
     if books:
         length_search_results = ceil(len(books) / 8)
         search_results_dict = {'books': books,

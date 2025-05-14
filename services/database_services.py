@@ -1,5 +1,5 @@
 from sqlalchemy.orm import joinedload, selectinload
-from database.models import Book, Page, Bookmark, Genre, Review
+from database.models import Book, Page, Bookmark, Genre, Review, Audiobook
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -248,13 +248,46 @@ async def sqlite_get_books_by_genre(session: AsyncSession, genre_id: int) -> lis
 
 
 async def sqlite_get_reviews_with_users_book_by_book_id(session: AsyncSession, book_id: int) -> list[Review]:
-    result = await session.execute(select(Review).options(selectinload(Review.user), selectinload(Review.book)).where(Review.book_id == book_id))
+    result = await session.execute(
+        select(Review).options(selectinload(Review.user), selectinload(Review.book)).where(Review.book_id == book_id))
     return result.scalars().all()
+
 
 async def sqlite_get_reviews_with_user_books_by_user_id(session: AsyncSession, user_id: int) -> list[Review]:
-    result = await session.execute(select(Review).options(selectinload(Review.user),selectinload(Review.book)).where(Review.user_id == user_id))
+    result = await session.execute(
+        select(Review).options(selectinload(Review.user), selectinload(Review.book)).where(Review.user_id == user_id))
     return result.scalars().all()
 
+
 async def sqlite_get_review_with_user_book_by_review_id(session: AsyncSession, review_id: int):
-    result = await session.scalar(select(Review).options(selectinload(Review.user), selectinload(Review.book)).where(Review.review_id == review_id))
+    result = await session.scalar(select(Review).options(selectinload(Review.user), selectinload(Review.book)).where(
+        Review.review_id == review_id))
     return result
+
+
+async def sqlite_get_audiobooks_with_book_user_by_uploader_id(session: AsyncSession, uploader_id: int):
+    result = await session.execute(
+        select(Audiobook).options(selectinload(Audiobook.uploader), selectinload(Audiobook.book)).where(
+            Audiobook.uploader_id == uploader_id))
+    return result.scalars().all()
+
+
+async def sqlite_get_audiobooks_with_book_user_by_book_id(session: AsyncSession, book_id: int):
+    result = await session.execute(
+        select(Audiobook).options(selectinload(Audiobook.uploader), selectinload(Audiobook.book)).where(
+            Audiobook.book_id == book_id))
+    return result.scalars().all()
+
+
+async def sqlite_get_audiobook_with_book_user_by_audiobook_id(session: AsyncSession, audiobook_id):
+    return await session.scalar(
+        select(Audiobook).options(selectinload(Audiobook.uploader), selectinload(Audiobook.book)).where(
+            Audiobook.audiobook_id == audiobook_id))
+
+
+async def sqlite_get_audiobook_ids_by_book_id(session: AsyncSession, book_id: int) -> list[int]:
+    result = await session.execute(
+        select(Audiobook.audiobook_id)
+        .where(Audiobook.book_id == book_id)
+    )
+    return [row[0] for row in result.all()]

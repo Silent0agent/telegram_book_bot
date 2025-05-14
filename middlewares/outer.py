@@ -157,6 +157,7 @@ class StateResetMiddleware(BaseMiddleware):
             cleanup_map = {
                 'FSMAddBook': ['add_book', 'active_add_book_message_id'],
                 'FSMCreateReview': ['add_review'],
+                'FSMAddAudiobook': ['add_audiobook']
                 # 'FSMSearchBook': ['search_by_genres', 'active_search_by_genres_message_id']
             }
 

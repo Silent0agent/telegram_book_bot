@@ -19,7 +19,8 @@ def create_choose_search_keyboard() -> InlineKeyboardMarkup:
     return kb_builder.as_markup()
 
 
-def create_found_keyboard(current_list_page, length_search_results, *books: Book, add_book=False) -> InlineKeyboardMarkup:
+def create_found_keyboard(current_list_page, length_search_results, *books: Book,
+                          add_book=False) -> InlineKeyboardMarkup:
     kb_builder = InlineKeyboardBuilder()
     # Наполняем клавиатуру кнопками-закладками в порядке возрастания
     for i in range(len(books)):
@@ -29,11 +30,13 @@ def create_found_keyboard(current_list_page, length_search_results, *books: Book
         ))
     pagination_buttons: list[InlineKeyboardButton] = []
     if current_list_page != 1:
-        pagination_buttons.append(InlineKeyboardButton(text='<', callback_data='search_results_backward'))
+        pagination_buttons.append(
+            InlineKeyboardButton(text=LEXICON['pagination_backward'], callback_data='search_results_backward'))
     pagination_buttons.append(
         InlineKeyboardButton(text=f'{current_list_page}/{length_search_results}', callback_data='...'))
     if current_list_page != length_search_results:
-        pagination_buttons.append(InlineKeyboardButton(text='>', callback_data='search_results_forward'))
+        pagination_buttons.append(
+            InlineKeyboardButton(text=LEXICON['pagination_forward'], callback_data='search_results_forward'))
     kb_builder.row(*pagination_buttons, width=3)
     if add_book:
         kb_builder.row(InlineKeyboardButton(text=LEXICON['add_book'], callback_data='add_book'))

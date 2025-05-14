@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from math import ceil
 from typing import Optional
 from aiogram import F, Router, Bot
@@ -8,13 +10,21 @@ from aiogram.fsm.state import default_state
 from aiogram.types import CallbackQuery, Message, InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from database.models import Book,Genre
+from database.models import Book, Genre
 from keyboards.genres_kb import create_genres_keyboard
 from lexicon.lexicon import LEXICON
-from services.file_handling import prepare_book
+from services.file_handling import prepare_book, get_book_text
+from services.gtts_api_services import generate_and_save_audiobook
 from states.states import FSMAddBook
+from services.file_handling import save_book_files, cleanup_book_files
 
 router = Router()
+logger = logging.getLogger(__name__)
+
+# Общие константы для валидации
+MAX_TITLE_LENGTH = 200
+MAX_AUTHOR_LENGTH = 100
+MAX_DESCRIPTION_LENGTH = 1000
 
 
 @router.callback_query(F.data == 'add_book')
@@ -37,12 +47,6 @@ async def process_cancel_add_book(message: Message, state: FSMContext):
     await state.set_state(default_state)
 
 
-# Общие константы для валидации
-MAX_TITLE_LENGTH = 200
-MAX_AUTHOR_LENGTH = 100
-MAX_DESCRIPTION_LENGTH = 1000
-
-
 @router.message(
     StateFilter(FSMAddBook.fill_title),
     F.content_type == ContentType.TEXT)
@@ -51,7 +55,7 @@ async def process_fill_book_title(message: Message, state: FSMContext):
 
     # Валидация названия
     if not title:
-        await message.answer("❌ Название книги не может быть пустым")
+        await message.answer(LEXICON['empty_title_warning'])
         return
     if len(title) > MAX_TITLE_LENGTH:
         await message.answer(f"❌ Слишком длинное название. Максимум {MAX_TITLE_LENGTH} символов")
@@ -94,7 +98,7 @@ async def process_fill_book_description(message: Message, state: FSMContext, ses
 
     # Валидация описания
     if not description:
-        await message.answer("❌ Описание не может быть пустым")
+        await message.answer(LEXICON['empty_description_warning'])
         return
     if len(description) > MAX_DESCRIPTION_LENGTH:
         await message.answer(f"❌ Слишком длинное описание. Максимум {MAX_DESCRIPTION_LENGTH} символов")
@@ -108,7 +112,7 @@ async def process_fill_book_description(message: Message, state: FSMContext, ses
     all_genres = all_genres.scalars().all()
 
     if not all_genres:
-        await message.answer("❌ Нет доступных жанров. Обратитесь к администратору")
+        await message.answer(LEXICON['no_genres_in_database'])
         await state.set_state(default_state)
         return
 
@@ -142,7 +146,7 @@ async def process_fill_book_description(message: Message, state: FSMContext, ses
     ~(F.content_type == ContentType.TEXT)
 )
 async def process_wrong_content_type(message: Message):
-    await message.answer("ℹ️ Пожалуйста, отправьте текстовое сообщение")
+    await message.answer(LEXICON['ask_for_text_message'])
 
 
 @router.callback_query(StateFilter(FSMAddBook.fill_genres), F.data.startswith('choose_genre'))
@@ -227,7 +231,7 @@ async def process_choose_genre(callback: CallbackQuery, state: FSMContext, sessi
     all_genres = await session.execute(select(Genre))
     all_genres = all_genres.scalars().all()
     if not all_genres:
-        await callback.message.answer("❌ Нет доступных жанров. Обратитесь к администратору")
+        await callback.message.answer(LEXICON['no_genres_in_database'])
         await state.set_state(default_state)
         return
     await callback.message.edit_text(LEXICON['fill_genres'],
@@ -316,8 +320,6 @@ async def validate_book_data(data: dict) -> Optional[str]:
     return None
 
 
-from services.file_handling import save_book_files, cleanup_book_files
-
 
 @router.message(StateFilter(FSMAddBook.upload_text_file))
 async def process_upload_text_file(message: Message, bot: Bot, state: FSMContext, session: AsyncSession):
@@ -362,6 +364,19 @@ async def process_upload_text_file(message: Message, bot: Bot, state: FSMContext
         # 3. Финализация
         await prepare_book(book.book_id)
 
+        # 4 Аудио
+        asyncio.create_task(
+            generate_and_save_audiobook(
+                bot=bot,
+                book=book,
+                # book_id=book.book_id,
+                user_id=message.from_user.id,
+                chat_id=message.chat.id,
+                book_text=await get_book_text(book.book_id),
+                session=session
+            )
+        )
+
         # Очистка состояния
         new_data = {k: v for k, v in data.items() if k not in ['add_book', 'active_add_book_message_id']}
         await state.set_data(new_data)
@@ -371,7 +386,7 @@ async def process_upload_text_file(message: Message, bot: Bot, state: FSMContext
             LEXICON['add_book_success'],
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                 InlineKeyboardButton(
-                    text=LEXICON['return_to_user_books'],
+                    text=LEXICON['search_user_books'],
                     callback_data='search_user_books'
                 )
             ]])
@@ -380,7 +395,7 @@ async def process_upload_text_file(message: Message, bot: Bot, state: FSMContext
     except Exception as e:
         await session.rollback()
         error_msg = f"❌ Ошибка при добавлении книги: {type(e).__name__} - {str(e)}"
-        print(error_msg)
+        logger.exception(error_msg)
 
         # Удаление частично созданных файлов
         if 'book' in locals():

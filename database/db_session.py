@@ -1,3 +1,4 @@
+import logging
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
@@ -6,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncAttrs
 SqlAlchemyBase = declarative_base(cls=AsyncAttrs)
 
 __async_factory = None
+logger = logging.getLogger()
+
 
 async def global_init(db_file: str):
     global __async_factory
@@ -18,7 +21,7 @@ async def global_init(db_file: str):
 
     # Для SQLite используем aiosqlite
     conn_str = f'sqlite+aiosqlite:///{db_file.strip()}'
-    print(f"Подключение к базе данных по адресу {conn_str}")
+    logger.info(f"Подключение к базе данных по адресу {conn_str}")
 
     engine = create_async_engine(
         conn_str,

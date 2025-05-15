@@ -148,7 +148,7 @@ async def process_search(event: Union[Message, CallbackQuery], state: FSMContext
                                'current_page': 1,
                                'length': length_search_results,
                                'search_user_books': search_user_books}
-        texts = [f'{LEXICON[f"enumeration_{i + 1}"]} {books[i].title}  - {books[i].author}' for i in range(len(books[:8]))]
+        texts = [f'{LEXICON[f"enumeration_{i + 1}"]} <b>{books[i].title}</b>  - {books[i].author}' for i in range(len(books[:8]))]
         new_message = await message.answer('\n\n'.join(texts),
                                            reply_markup=create_found_keyboard(1, length_search_results, *books[:8],
                                                                               add_book=search_user_books))
@@ -188,7 +188,7 @@ async def process_move_search_results(callback: CallbackQuery, state: FSMContext
     current_list_page = search_results_dict['current_page']
     books = search_results_dict['books'][(current_list_page - 1) * 8:(current_list_page - 1) * 8 + 8]
     length_search_results = search_results_dict['length']
-    texts = [f'{LEXICON[f"enumeration_{i + 1}"]} {books[i].title}  - {books[i].author}' for i in range(len(books))]
+    texts = [f'{LEXICON[f"enumeration_{i + 1}"]} <b>{books[i].title}</b>  - {books[i].author}' for i in range(len(books))]
     await callback.message.edit_text('\n\n'.join(texts),
                                      reply_markup=create_found_keyboard(current_list_page, length_search_results,
                                                                         *books,

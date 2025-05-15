@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 import asyncio
 
-from gtts import gTTS
+from gtts import gTTS, gTTSError  # Явно импортируем gTTSError
 import aiofiles
 from aiogram import Bot
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,8 +23,14 @@ async def async_tts_save(text: str, lang: str, path: Path):
             lambda: tts.save(str(path))
         )
         return True
+    except gTTSError as e:
+        if "429" in str(e):
+            logger.warning(f"TTS API rate limit exceeded: {e}")
+        else:
+            logger.exception(f"TTS API error: {e}")
+        return False
     except Exception as e:
-        logger.exception(f"TTS error: {e}")
+        logger.exception(f"Unexpected TTS error: {e}")
         return False
 
 
@@ -40,15 +46,12 @@ async def generate_and_save_audiobook(
         max_retries: int = 3
 ):
     """Полностью асинхронная генерация аудиокниги с обработкой ограничений API"""
-    try:
-        if len(book_text) > 100_000:
-            await bot.send_message(
-                chat_id,
-                "📚 Книга слишком большая для автоматической генерации. "
-                "Вы можете добавить аудиоверсию вручную через меню книги."
-            )
-            return
+    audiobook = None
+    base_dir = Path("media/audiobooks")
+    output_path = None
+    main_file = None
 
+    try:
         # Создаем запись аудиокниги в БД
         audiobook = Audiobook(
             book_id=book.book_id,
@@ -60,50 +63,79 @@ async def generate_and_save_audiobook(
         await session.refresh(audiobook)
 
         # Подготовка путей
-        base_dir = Path("media/audiobooks")
         base_dir.mkdir(parents=True, exist_ok=True)
         output_path = base_dir / f"{audiobook.audiobook_id}.mp3"
-        # audiobook.audio_url = str(output_path)
+        temp_files = []
 
-        # Генерация аудио по частям
-        async with aiofiles.open(output_path, "wb") as main_file:
-            chunks = [book_text[i:i + chunk_size] for i in range(0, len(book_text), chunk_size)]
+        # Явно открываем файл в режиме записи
+        main_file = await aiofiles.open(output_path, "wb")
 
-            for i, chunk in enumerate(chunks):
-                temp_path = base_dir / f"temp_{audiobook.audiobook_id}_{i}.mp3"
-                retry_count = 0
-                success = False
+        chunks = [book_text[i:i + chunk_size] for i in range(0, len(book_text), chunk_size)]
 
-                # Повторные попытки при ошибках
-                while retry_count < max_retries and not success:
-                    try:
-                        success = await async_tts_save(chunk, "ru", temp_path)
-                        if not success:
-                            retry_count += 1
-                            await asyncio.sleep(delay * 2)  # Увеличиваем задержку при повторе
-                            continue
+        for i, chunk in enumerate(chunks):
+            temp_path = base_dir / f"temp_{audiobook.audiobook_id}_{i}.mp3"
+            temp_files.append(temp_path)
+            retry_count = 0
+            success = False
 
-                        # Объединение частей
-                        async with aiofiles.open(temp_path, "rb") as temp_file:
-                            await main_file.write(await temp_file.read())
-
-                    except Exception as e:
-                        if "too many requests" in str(e).lower():
-                            retry_count += 1
-                            wait_time = delay * (2 ** retry_count)  # Экспоненциальная задержка
-                            logging.info(f"Rate limit hit, waiting {wait_time} seconds...")
-                            await asyncio.sleep(wait_time)
-                        else:
-                            logger.exception(f"Error processing chunk {i}: {e}")
-                            break
-
-                # Очистка временного файла
+            while retry_count < max_retries and not success:
                 try:
-                    temp_path.unlink(missing_ok=True)
-                except Exception as e:
-                    logger.exception(f"Error deleting temp file: {e}")
+                    success = await async_tts_save(chunk, "ru", temp_path)
 
-                await asyncio.sleep(delay)  # Базовая задержка между запросами
+                    if not success:
+                        retry_count += 1
+                        wait_time = delay * (2 ** retry_count)
+                        logger.warning(f"Retry {retry_count}/{max_retries}, waiting {wait_time}s...")
+                        await asyncio.sleep(wait_time)
+                        continue
+
+                    async with aiofiles.open(temp_path, "rb") as temp_file:
+                        await main_file.write(await temp_file.read())
+
+                except Exception as e:
+                    logger.exception(f"Error processing chunk {i}: {e}")
+                    retry_count += 1
+                    await asyncio.sleep(delay * 2)
+                    continue
+
+            if not success:
+                logger.error(f"Failed to process chunk {i} after {max_retries} retries")
+                # Закрываем основной файл перед удалением
+                if main_file:
+                    await main_file.close()
+                # Удаляем все временные файлы
+                for file in temp_files:
+                    try:
+                        file.unlink(missing_ok=True)
+                    except Exception as e:
+                        logger.exception(f"Error deleting temp file {file}: {e}")
+                # Удаляем выходной файл, если он был частично создан
+                if output_path.exists():
+                    try:
+                        output_path.unlink()
+                    except Exception as e:
+                        logger.exception(f"Error deleting output file: {e}")
+                # Откатываем БД
+                await session.rollback()
+                # Уведомляем пользователя
+                await bot.send_message(
+                    chat_id,
+                    "⚠️ Сервис синтеза речи перегружен и не отвечает. "
+                    "Попробуйте позже или загрузите аудиофайл вручную."
+                )
+                return None
+
+            try:
+                temp_path.unlink(missing_ok=True)
+            except Exception as e:
+                logger.exception(f"Error deleting temp file: {e}")
+
+            await asyncio.sleep(delay)
+
+        # Закрываем основной файл перед сохранением в БД
+        if main_file:
+            await main_file.close()
+
         # Сохранение пути к файлу
         audiobook.audio_url = str(output_path)
         session.add(audiobook)
@@ -112,25 +144,42 @@ async def generate_and_save_audiobook(
         # Проверка, что книга еще существует
         if not await session.scalar(select(Book).where(Book.book_id == book.book_id)):
             output_path.unlink(missing_ok=True)
-            return
+            return None
 
         # Уведомление пользователю
         await bot.send_message(
             chat_id,
-            f"🎧 Аудиокнига '{book.title}' готова!")
+            f"🎧 Аудиокнига '{book.title}' готова!"
+        )
         return output_path
 
     except Exception as e:
         logger.exception(f"Audiobook generation failed: {e}")
+        # Закрываем основной файл, если он был открыт
+        if main_file:
+            await main_file.close()
+        # Удаляем созданные файлы
+        if output_path and output_path.exists():
+            try:
+                output_path.unlink()
+            except Exception as e:
+                logger.exception(f"Error deleting output file: {e}")
+        # Удаляем временные файлы
+        for file in base_dir.glob(f"temp_{audiobook.audiobook_id}_*.mp3" if audiobook else "temp_*.mp3"):
+            try:
+                file.unlink()
+            except Exception as e:
+                logger.exception(f"Error deleting temp file {file}: {e}")
+        # Откатываем БД
+        await session.rollback()
+        # Уведомляем пользователя
         try:
             await bot.send_message(
                 chat_id,
                 "⚠️ Не удалось сгенерировать аудиокнигу. Сервис синтеза речи перегружен. "
-                "Попробуйте позже или загрузите аудиофайл вручную."
+                "Вы можете ввести аудиофайл вручную."
             )
-        except:
-            pass
+        except Exception as e:
+            logger.exception("Failed to send error notification to user")
 
-        # Удаляем запись из БД, если не удалось сгенерировать
-        await session.rollback()
         return None

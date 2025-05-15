@@ -12,6 +12,7 @@ class TgBot:
 @dataclass
 class Config:
     tg_bot: TgBot
+    proxy_url: str
 
 
 # Создаем функцию, которая будет читать файл .env и возвращать
@@ -23,5 +24,6 @@ def load_config(path: str | None = None) -> Config:
         tg_bot=TgBot(
             token=env('BOT_TOKEN'),
             admin_ids=list(map(int, env.list('ADMIN_IDS')))
-        )
+        ),
+        proxy_url=env('PROXY_URL')
     )

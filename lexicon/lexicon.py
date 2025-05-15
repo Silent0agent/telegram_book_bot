@@ -25,6 +25,15 @@ LEXICON: dict[str, str] = {
     'pagination_forward': '⏩',
     'cancel': '🔙 Назад',
     'cancel_text': '/continue - продолжить чтение',
+    'enumeration_1': '1️⃣',
+    'enumeration_2': '2️⃣',
+    'enumeration_3': '3️⃣',
+    'enumeration_4': '4️⃣',
+    'enumeration_5': '5️⃣',
+    'enumeration_6': '6️⃣',
+    'enumeration_7': '7️⃣',
+    'enumeration_8': '8️⃣',
+    'enumeration_9': '9️⃣',
 
     # Поиск и фильтрация
     'start_search': '🔍 Поиск книг',

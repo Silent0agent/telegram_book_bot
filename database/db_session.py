@@ -41,12 +41,6 @@ async def global_init(db_file: str):
         from . import models  # Импорт моделей перед созданием таблиц
         await conn.run_sync(SqlAlchemyBase.metadata.create_all)
 
-    # Запуск add_genrs только один раз
-    async with __async_factory() as conn:
-        from database.start_genrs import add_genrs
-        await add_genrs(conn)
-
-
 
 async def create_session() -> AsyncSession:
     global __async_factory

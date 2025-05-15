@@ -3,7 +3,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from lexicon.lexicon import LEXICON
 
 
-def create_audiobooks_keyboard(current_list_page, list_length, audiobook) -> InlineKeyboardMarkup:
+def create_audiobooks_keyboard(current_list_page, list_length, audiobook, is_user_audiobook=False) -> InlineKeyboardMarkup:
     kb_builder = InlineKeyboardBuilder()
     inline_buttons = []
     if current_list_page != 1:
@@ -21,6 +21,7 @@ def create_audiobooks_keyboard(current_list_page, list_length, audiobook) -> Inl
             callback_data=f'listen_audiobook_{audiobook.audiobook_id}'
         )
     )
-    kb_builder.row(InlineKeyboardButton(text=LEXICON['delete_audiobook'],
+    if is_user_audiobook:
+        kb_builder.row(InlineKeyboardButton(text=LEXICON['delete_audiobook'],
                                         callback_data=f'delete_audiobook_{audiobook.audiobook_id}'))
     return kb_builder.as_markup()

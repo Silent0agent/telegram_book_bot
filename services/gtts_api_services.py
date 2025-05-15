@@ -63,6 +63,7 @@ async def generate_and_save_audiobook(
         base_dir = Path("media/audiobooks")
         base_dir.mkdir(parents=True, exist_ok=True)
         output_path = base_dir / f"{audiobook.audiobook_id}.mp3"
+        # audiobook.audio_url = str(output_path)
 
         # Генерация аудио по частям
         async with aiofiles.open(output_path, "wb") as main_file:
@@ -103,15 +104,15 @@ async def generate_and_save_audiobook(
                     logger.exception(f"Error deleting temp file: {e}")
 
                 await asyncio.sleep(delay)  # Базовая задержка между запросами
+        # Сохранение пути к файлу
+        audiobook.audio_url = str(output_path)
+        session.add(audiobook)
+        await session.commit()
 
         # Проверка, что книга еще существует
         if not await session.scalar(select(Book).where(Book.book_id == book.book_id)):
             output_path.unlink(missing_ok=True)
             return
-
-        # Сохранение пути к файлу
-        audiobook.audio_url = str(output_path)
-        await session.commit()
 
         # Уведомление пользователю
         await bot.send_message(

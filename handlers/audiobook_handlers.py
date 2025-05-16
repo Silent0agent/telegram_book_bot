@@ -51,7 +51,7 @@ async def send_audiobook(callback: CallbackQuery, session: AsyncSession):
         await callback.answer()
 
     except Exception as e:
-        logger.exception(f"Ошибка отправки аудиокниги: {e}")
+        logger.exception(f"Error sending audiobook: {e}")
         await callback.answer("❌ Ошибка при отправке аудиокниги", show_alert=True)
 
 

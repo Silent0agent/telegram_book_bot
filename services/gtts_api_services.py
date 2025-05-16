@@ -52,6 +52,17 @@ async def generate_and_save_audiobook(
     main_file = None
 
     try:
+        if len(book_text) >= 100_000:
+            await bot.send_message(
+                chat_id,
+                'ℹ️ Текст вашей книги слишком большой для генерации аудио. Вы можете добавить свою аудио-версию книги'
+                ' через её меню.'
+            )
+            return None
+        else:
+            await bot.send_message(chat_id,
+                                   f'ℹ️ Началась генерация аудиокниги {book.title}, она будет идти в фоновом процессе,'
+                                   f'поэтому вы можете взаимодействовать с ботом.')
         # Создаем запись аудиокниги в БД
         audiobook = Audiobook(
             book_id=book.book_id,

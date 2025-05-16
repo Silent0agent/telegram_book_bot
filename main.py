@@ -40,12 +40,13 @@ async def main():
     database_session = await create_session()
     await init_genres(database_session)
 
-    session = AiohttpSession(proxy=config.proxy_url)
+    # Подключение прокси (для хостинга на pythonanywhere)
+    # session = AiohttpSession(proxy=config.proxy_url)
     # Инициализируем бот и диспетчер
     bot = Bot(
         token=config.tg_bot.token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-        session=session
+        # session=session
     )
     dp = Dispatcher(storage=storage)
 

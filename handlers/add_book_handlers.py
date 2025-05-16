@@ -394,7 +394,7 @@ async def process_upload_text_file(message: Message, bot: Bot, state: FSMContext
 
     except Exception as e:
         await session.rollback()
-        error_msg = f"❌ Ошибка при добавлении книги: {type(e).__name__} - {str(e)}"
+        error_msg = f"❌ Error adding book: {type(e).__name__} - {str(e)}"
         logger.exception(error_msg)
 
         # Удаление частично созданных файлов

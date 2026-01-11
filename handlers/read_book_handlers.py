@@ -55,7 +55,7 @@ async def process_delete_book(callback: CallbackQuery, session: AsyncSession):
 
     except Exception as e:
         await session.rollback()
-        logger.exception(f"Ошибка при удалении книги: {e}")
+        logger.exception(f"Error deleting book: {e}")
         await callback.message.answer('Произошла ошибка при удалении книги')
 
 
@@ -180,7 +180,7 @@ async def process_book_or_bookmark(
         await callback.message.answer("⚠️ Неверный формат команды")
         logger.exception(e)
     except Exception as e:
-        logger.exception(f"Ошибка: {e}")
+        logger.exception(f"Error: {e}")
         await callback.message.answer("⚠️ Произошла ошибка")
 
 

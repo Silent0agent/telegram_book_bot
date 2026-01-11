@@ -49,7 +49,7 @@ async def process_book_review(callback: CallbackQuery, state: FSMContext, sessio
     review_uploader = review.user
     is_user_review = review.user_id == callback.from_user.id
     new_message = await callback.message.answer(
-        f"Пользователь: {review_uploader.first_name} {review_uploader.last_name}\n"
+        f"Пользователь: {review_uploader.first_name if review_uploader.first_name else ''} {review_uploader.last_name if review_uploader.last_name else ''}\n"
         f"Книга: {review.book.author} — {review.book.title}\n"
         f"Оценка: {rating}\n"
         f"Мнение о книге: {review.text}",
@@ -106,7 +106,7 @@ async def process_view_review(callback: CallbackQuery, session: AsyncSession):
     rating = review.rating
     rating = f"{round(rating, 2)} {LEXICON[f'rating_{round(rating)}']}"
     await callback.message.answer(
-        f"Пользователь: {review_uploader.first_name} {review_uploader.last_name}\n"
+        f"Пользователь: {review_uploader.first_name if review_uploader.first_name else ''} {review_uploader.last_name if review_uploader.last_name else ''}\n"
         f"Книга: {review.book.author} — {review.book.title}\n"
         f"Оценка: {rating}\n"
         f"Мнение о книге: {review.text}",

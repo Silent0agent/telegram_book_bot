@@ -268,26 +268,26 @@ async def sqlite_get_review_with_user_book_by_review_id(session: AsyncSession, r
 async def sqlite_get_audiobooks_with_book_user_by_uploader_id(session: AsyncSession, uploader_id: int):
     result = await session.execute(
         select(Audiobook).options(selectinload(Audiobook.uploader), selectinload(Audiobook.book)).where(
-            Audiobook.uploader_id == uploader_id))
+            Audiobook.uploader_id == uploader_id, Audiobook.audio_url.is_not(None)))
     return result.scalars().all()
 
 
 async def sqlite_get_audiobooks_with_book_user_by_book_id(session: AsyncSession, book_id: int):
     result = await session.execute(
         select(Audiobook).options(selectinload(Audiobook.uploader), selectinload(Audiobook.book)).where(
-            Audiobook.book_id == book_id))
+            Audiobook.book_id == book_id, Audiobook.audio_url.is_not(None)))
     return result.scalars().all()
 
 
 async def sqlite_get_audiobook_with_book_user_by_audiobook_id(session: AsyncSession, audiobook_id):
     return await session.scalar(
         select(Audiobook).options(selectinload(Audiobook.uploader), selectinload(Audiobook.book)).where(
-            Audiobook.audiobook_id == audiobook_id))
+            Audiobook.audiobook_id == audiobook_id, Audiobook.audio_url.is_not(None)))
 
 
 async def sqlite_get_audiobook_ids_by_book_id(session: AsyncSession, book_id: int) -> list[int]:
     result = await session.execute(
         select(Audiobook.audiobook_id)
-        .where(Audiobook.book_id == book_id)
+        .where(Audiobook.book_id == book_id, Audiobook.audio_url.is_not(None))
     )
     return [row[0] for row in result.all()]

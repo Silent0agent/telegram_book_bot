@@ -3,6 +3,7 @@ import logging
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 
@@ -33,14 +34,19 @@ async def main():
 
     # Загружаем конфиг в переменную config
     config: Config = load_config()
+
     storage = MemoryStorage()
     await db_session.global_init('database/books.db')
-    session = await create_session()
-    await init_genres(session)
+    database_session = await create_session()
+    await init_genres(database_session)
+
+    # Подключение прокси (для хостинга на pythonanywhere)
+    # session = AiohttpSession(proxy=config.proxy_url)
     # Инициализируем бот и диспетчер
     bot = Bot(
         token=config.tg_bot.token,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+        # session=session
     )
     dp = Dispatcher(storage=storage)
 

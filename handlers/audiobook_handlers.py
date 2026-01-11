@@ -51,7 +51,7 @@ async def send_audiobook(callback: CallbackQuery, session: AsyncSession):
         await callback.answer()
 
     except Exception as e:
-        logger.exception(f"Ошибка отправки аудиокниги: {e}")
+        logger.exception(f"Error sending audiobook: {e}")
         await callback.answer("❌ Ошибка при отправке аудиокниги", show_alert=True)
 
 
@@ -84,10 +84,10 @@ async def process_book_audiobooks(callback: CallbackQuery, state: FSMContext, se
     audiobook = audiobooks[0]
     uploader = audiobook.uploader
     new_message = await callback.message.answer(
-        f"Выложил: {uploader.first_name} {uploader.last_name}\n"
+        f"Выложил: {uploader.first_name if uploader.first_name else ''} {uploader.last_name if uploader.last_name else ''}\n"
         f"Книга: {audiobook.book.author} — {audiobook.book.title}\n"
         f"Название аудиокниги: {audiobook.title}\n",
-        reply_markup=create_audiobooks_keyboard(1, len(audiobooks), audiobook))
+        reply_markup=create_audiobooks_keyboard(1, len(audiobooks), audiobook, is_user_audiobook=uploader.user_id == callback.from_user.id))
     await state.update_data(audiobooks_results=audiobooks_results_dict,
                             active_audiobook_results_message_id=new_message.message_id)
 
@@ -115,7 +115,7 @@ async def process_move_audiobooks_list(callback: CallbackQuery, state: FSMContex
     uploader = audiobook.uploader
     is_user_audiobook = uploader.user_id == callback.from_user.id
     new_message = await callback.message.edit_text(
-        f"Выложил: {uploader.first_name} {uploader.last_name}\n"
+        f"Выложил: {uploader.first_name if uploader.first_name else ''} {uploader.last_name if uploader.last_name else ''}\n"
         f"Книга: {audiobook.book.author} — {audiobook.book.title}\n"
         f"Название аудиокниги: {audiobook.title}\n",
         reply_markup=create_audiobooks_keyboard(current_page, len(audiobooks_results_dict['audiobooks']), audiobook,
@@ -134,7 +134,7 @@ async def process_view_audiobook(callback: CallbackQuery, session: AsyncSession)
         return
     uploader = audiobook.uploader
     await callback.message.answer(
-        f"Выложил: {uploader.first_name} {uploader.last_name}\n"
+        f"Выложил: {uploader.first_name if uploader.first_name else ''} {uploader.last_name if uploader.last_name else ''}\n"
         f"Книга: {audiobook.book.author} — {audiobook.book.title}\n"
         f"Название аудиокниги: {audiobook.title}\n",
         reply_markup=
@@ -148,7 +148,7 @@ async def process_view_audiobook(callback: CallbackQuery, session: AsyncSession)
 async def process_delete_audiobook(callback: CallbackQuery, session: AsyncSession):
     await callback.answer()
     audiobook_id = int(callback.data.split('_')[-1])
-    audiobook = await session.scalar(select(Audiobook).where(Audiobook.audiobook_id == audiobook_id))
+    audiobook = await session.scalar(select(Audiobook).where(Audiobook.audiobook_id == audiobook_id, Audiobook.audio_url.is_not(None)))
     if not audiobook:
         await callback.message.answer(LEXICON['audiobook_not_found'])
         return

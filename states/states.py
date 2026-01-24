@@ -1,4 +1,7 @@
-from aiogram.fsm.state import StatesGroup, State
+__all__ = ()
+
+from aiogram.fsm.state import State, StatesGroup
+
 
 class FSMSearchBook(StatesGroup):
     search_by_title_and_author = State()
@@ -9,9 +12,11 @@ class FSMSearchBook(StatesGroup):
     search_all = State()
     search_user_books = State()
 
+
 class FSMCreateReview(StatesGroup):
     rating = State()
     text = State()
+
 
 class FSMAddBook(StatesGroup):
     fill_title = State()
@@ -21,7 +26,8 @@ class FSMAddBook(StatesGroup):
     fill_is_public = State()
     upload_cover = State()
     upload_text_file = State()
-    # added = State()
+
+
 class FSMAddAudiobook(StatesGroup):
     fill_title = State()
     upload_audio = State()

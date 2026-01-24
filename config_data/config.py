@@ -1,6 +1,12 @@
+__all__ = ()
+
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
 
 from environs import Env
+
+BASE_DIR = Path(__file__).parent.parent
 
 
 @dataclass
@@ -12,7 +18,9 @@ class TgBot:
 @dataclass
 class Config:
     tg_bot: TgBot
-    proxy_url: str
+    log_level: str
+    language: str
+    proxy_url: Optional[str] = None
 
 
 # Создаем функцию, которая будет читать файл .env и возвращать
@@ -22,8 +30,13 @@ def load_config(path: str | None = None) -> Config:
     env.read_env(path)
     return Config(
         tg_bot=TgBot(
-            token=env('BOT_TOKEN'),
-            admin_ids=list(map(int, env.list('ADMIN_IDS')))
+            token=env("BOT_TOKEN"),
+            admin_ids=list(map(int, env.list("ADMIN_IDS"))),
         ),
-        proxy_url=env('PROXY_URL')
+        log_level=env("LOG_LEVEL", "INFO").upper(),
+        language=env("BOT_LANGUAGE", default="en"),
+        proxy_url=env("PROXY_URL", default=None),
     )
+
+
+config = load_config()

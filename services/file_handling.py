@@ -1,25 +1,28 @@
+__all__ = ()
+
 import logging
 from pathlib import Path
 from typing import Tuple
 
 import aiofiles
-import chardet
 from aiogram import Bot
-from aiogram.types import FSInputFile, Audio
+from aiogram.types import Audio, FSInputFile
+import chardet
 
+import config_data.config
 from database.db_session import create_session
-from database.models import Page, Book
+from database.models import Book, Page
 
 PAGE_SIZE = 1050
 logger = logging.getLogger(__name__)
 
 
 async def save_book_files(
-        bot: Bot,
-        book: Book,
-        text_file_id: str,
-        cover_file_id: str,
-        base_dir: Path = Path(__file__).parent.parent
+    bot: Bot,
+    book: Book,
+    text_file_id: str,
+    cover_file_id: str,
+    base_dir: Path = config_data.config.BASE_DIR,
 ) -> Tuple[Path, Path]:
     """
     Сохраняет файлы книги (текст и обложку)
@@ -50,15 +53,15 @@ async def _save_text_file(bot: Bot, file_id: str, save_path: Path):
     file_bytes = (await bot.download_file(file.file_path)).read()
 
     # Определяем кодировку
-    detected_encoding = chardet.detect(file_bytes)['encoding'] or 'utf-8'
+    detected_encoding = chardet.detect(file_bytes)["encoding"] or "utf-8"
 
     # Декодируем и сохраняем в UTF-8
     try:
-        text_content = file_bytes.decode(detected_encoding, errors='replace')
-        async with aiofiles.open(save_path, 'w', encoding='utf-8') as f:
+        text_content = file_bytes.decode(detected_encoding, errors="replace")
+        async with aiofiles.open(save_path, "w", encoding="utf-8") as f:
             await f.write(text_content)
     except UnicodeError as e:
-        logger.error(f"Ошибка обработки текста: {str(e)}")
+        logger.error(f"Error processing text: {str(e)}")
 
 
 async def _save_cover(bot: Bot, file_id: str, save_path: Path):
@@ -66,11 +69,14 @@ async def _save_cover(bot: Bot, file_id: str, save_path: Path):
     photo_file = await bot.get_file(file_id)
     photo_bytes = await bot.download_file(photo_file.file_path)
 
-    async with aiofiles.open(save_path, 'wb') as f:
+    async with aiofiles.open(save_path, "wb") as f:
         await f.write(photo_bytes.read())
 
 
-async def cleanup_book_files(book_id: int, base_dir: Path = Path(__file__).parent.parent):
+async def cleanup_book_files(
+    book_id: int,
+    base_dir: Path = config_data.config.BASE_DIR,
+):
     """
     Удаляет файлы книги при ошибке
     """
@@ -81,35 +87,44 @@ async def cleanup_book_files(book_id: int, base_dir: Path = Path(__file__).paren
         if text_path.exists():
             text_path.unlink()
     except Exception as e:
-        logger.error(f"Ошибка при удалении текстового файла: {e}")
+        logger.error(f"Error deleting text file: {e}")
 
     try:
         if cover_path.exists():
             cover_path.unlink()
     except Exception as e:
-        logger.error(f"Ошибка при удалении обложки: {e}")
+        logger.error(f"Error deleting cover: {e}")
 
 
 # Функция, проверяющая текст на окончание многоточиями
 def _check_for_ellipsis(text: str, start: int, size: int):
-    punctuation_marks = [',', '.', '!', ':', ';', '?']
-    if text[start:start + size][-1] in punctuation_marks:
-        if text[start:start + size + 1][-1] in punctuation_marks:
-            return False
+    punctuation_marks = [",", ".", "!", ":", ";", "?"]
+    stop = start + size
+    punctuation_stop = stop + 1
+    if (
+        text[start:stop][-1] in punctuation_marks
+        and text[start:punctuation_stop][-1] in punctuation_marks
+    ):
+        return False
+
     return True
 
 
 # Функция, возвращающая строку с текстом страницы и ее размер
 def _get_part_text(text: str, start: int, size: int) -> tuple[str, int]:
-    text += ' '
-    punctuation_marks = [',', '.', '!', ':', ';', '?']
+    text += " "
+    punctuation_marks = [",", ".", "!", ":", ";", "?"]
     while not _check_for_ellipsis(text, start, size):
         size -= 1
-    part_text = text[start:start + size] + ' '
+
+    stop = start + size
+    part_text = text[start:stop] + " "
     for i in range(1, len(part_text)):
         if part_text[-i] in punctuation_marks:
-            return part_text[:-i + 1], len(part_text[:-i + 1])
-    return '', 0
+            stop = -i + 1
+            return part_text[:stop], len(part_text[:stop])
+
+    return "", 0
 
 
 async def prepare_book(book_id: int) -> None:
@@ -123,15 +138,14 @@ async def prepare_book(book_id: int) -> None:
         while start < len(text):
             page_text, part_size = _get_part_text(text, start, PAGE_SIZE)
             if page_text:
-                session.add(Page(
-                    book_id=book_id,
-                    num=count,
-                    text=page_text.strip()
-                ))
+                session.add(
+                    Page(book_id=book_id, num=count, text=page_text.strip()),
+                )
                 start += part_size
                 count += 1
             else:
                 break
+
         await session.commit()
     except Exception as e:
         await session.rollback()
@@ -141,36 +155,35 @@ async def prepare_book(book_id: int) -> None:
 
 
 async def get_book_text(book_id: int):
-    base_dir = Path(__file__).parent.parent
+    base_dir = config_data.config.BASE_DIR
     book_dir = base_dir / "media" / "books"
     book_dir.mkdir(parents=True, exist_ok=True)
-    book_path = book_dir / f'{book_id}.txt'
+    book_path = book_dir / f"{book_id}.txt"
 
     # Чтение файла
-    with open(book_path, 'r', encoding='utf-8') as file:
+    with Path(book_path).open("r", encoding="utf-8") as file:
         text = file.read()
-    while '\n\n\n' in text:
-        text = text.replace('\n\n\n', '\n\n')
+
+    while "\n\n\n" in text:
+        text = text.replace("\n\n\n", "\n\n")
+
     return text
 
 
 async def load_cover(book_id: str):
     """Асинхронно загружает обложку книги"""
-    base_dir = Path(__file__).parent.parent
+    base_dir = config_data.config.BASE_DIR
     covers_dir = base_dir / "media" / "covers"
     covers_dir.mkdir(parents=True, exist_ok=True)
-    cover_path = covers_dir / f'{book_id}.jpg'
+    cover_path = covers_dir / f"{book_id}.jpg"
 
     if not cover_path.exists():
         return None  # Или путь к дефолтной обложке
+
     return FSInputFile(str(cover_path))
 
 
-async def save_audiobook(
-        bot: Bot,
-        audio: Audio,
-        audiobook_id: int
-) -> Path:
+async def save_audiobook(bot: Bot, audio: Audio, audiobook_id: int) -> Path:
     """Сохраняет аудиофайл и возвращает путь к нему"""
     try:
         audiobooks_path = Path("media/audiobooks")
@@ -183,8 +196,9 @@ async def save_audiobook(
         return file_path
     except Exception as e:
         # Удаляем файл, если он был частично сохранен
-        if 'file_path' in locals():
+        if "file_path" in locals():
             file_path.unlink(missing_ok=True)
+
         raise e
 
 
@@ -194,7 +208,7 @@ def delete_audiobook_file(audiobook_id: int) -> bool:
     try:
         file_path.unlink(missing_ok=True)
         return True
-    except:
+    except Exception:
         return False
 
 
@@ -206,6 +220,7 @@ def delete_book_files(book_id: int, audiobook_ids: list):
         book_path.unlink(missing_ok=True)
         for audibook_id in audiobook_ids:
             delete_audiobook_file(audibook_id)
+
         return True
-    except:
+    except Exception:
         return False

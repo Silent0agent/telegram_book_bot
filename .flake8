@@ -1,0 +1,9 @@
+[flake8]
+inline-quotes = double
+application-import-names = config_data, database, handlers, keyboards, lexicon, middlewares, services, states
+import-order-style = google
+exclude =
+    .git/,
+    __pycache__,
+    env/,
+    venv/

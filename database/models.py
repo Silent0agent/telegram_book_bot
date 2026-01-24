@@ -1,13 +1,28 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Text, BigInteger, Table, Numeric
+__all__ = ()
+
+from datetime import datetime, timezone
+
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Table,
+    Text,
+)
 from sqlalchemy.orm import relationship
-from datetime import datetime
-from .db_session import SqlAlchemyBase
+
+from database.db_session import SqlAlchemyBase
 
 book_genre = Table(
     "book_genre",
     SqlAlchemyBase.metadata,
     Column("book_id", Integer, ForeignKey("books.book_id")),
-    Column("genre_id", Integer, ForeignKey("genres.genre_id"))
+    Column("genre_id", Integer, ForeignKey("genres.genre_id")),
 )
 
 
@@ -18,7 +33,7 @@ class User(SqlAlchemyBase):
     username = Column(String(100))
     first_name = Column(String(100))
     last_name = Column(String(100))
-    registration_date = Column(DateTime, default=datetime.utcnow)
+    registration_date = Column(DateTime, default=datetime.now(timezone.utc))
 
     books = relationship("Book", back_populates="uploader")
     bookmarks = relationship("Bookmark", back_populates="user")
@@ -33,16 +48,17 @@ class Book(SqlAlchemyBase):
     title = Column(String(255), nullable=False)
     author = Column(String(255))
     description = Column(Text)
-    # book_url = Column(String(512))
-    # cover_url = Column(String(512))
     is_public = Column(Boolean, default=True)
     uploader_id = Column(BigInteger, ForeignKey("users.user_id"))
 
     uploader = relationship("User", back_populates="books")
     bookmarks = relationship("Bookmark", back_populates="book")
     audiobooks = relationship("Audiobook", back_populates="book")
-    # pdfs = relationship("PDFBook", back_populates="book")
-    genres = relationship("Genre", secondary=book_genre, back_populates="books")
+    genres = relationship(
+        "Genre",
+        secondary=book_genre,
+        back_populates="books",
+    )
     reviews = relationship("Review", back_populates="book")
     pages = relationship("Page", back_populates="book")
 
@@ -52,7 +68,8 @@ class Book(SqlAlchemyBase):
             return 0.0  # или None, в зависимости от вашей логики
 
         total = sum(review.rating for review in self.reviews)
-        return round(total / len(self.reviews), 1)  # Округляем до 1 знака после запятой
+        return round(total / len(self.reviews), 1)
+        # Округляем до 1 знака после запятой
 
 
 class Page(SqlAlchemyBase):
@@ -70,7 +87,11 @@ class Genre(SqlAlchemyBase):
     __tablename__ = "genres"
 
     genre_id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(100), unique=True, nullable=False)  # Например: "Фантастика", "Детектив"
+    name = Column(
+        String(100),
+        unique=True,
+        nullable=False,
+    )  # Например: "Фантастика", "Детектив"
 
     books = relationship("Book", secondary=book_genre, back_populates="genres")
 
@@ -80,11 +101,11 @@ class Audiobook(SqlAlchemyBase):
 
     audiobook_id = Column(Integer, primary_key=True, autoincrement=True)
     book_id = Column(Integer, ForeignKey("books.book_id"))  # Связь с книгой
-    title = Column(String(255))  # Название аудиоверсии (может отличаться от текстовой)
+    # Название аудиоверсии (может отличаться от текстовой)
+    title = Column(String(255))
     audio_url = Column(String(512))  # Ссылка на файл
-    # duration_seconds = Column(Integer)  # Длительность в секундах
-    # language = Column(String(50), default="ru")  # Язык озвучки
-    uploader_id = Column(BigInteger, ForeignKey("users.user_id"))  # Кто загрузил
+    # Кто загрузил
+    uploader_id = Column(BigInteger, ForeignKey("users.user_id"))
 
     book = relationship("Book", back_populates="audiobooks")
     uploader = relationship("User", back_populates="audiobooks")

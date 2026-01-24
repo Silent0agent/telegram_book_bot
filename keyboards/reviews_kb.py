@@ -1,27 +1,54 @@
+__all__ = ()
+
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from lexicon.lexicon import LEXICON
+
+from lexicon import LEXICON
 
 
-def create_reviews_keyboard(current_list_page, list_length, review, is_user_review=False) -> InlineKeyboardMarkup:
+def create_reviews_keyboard(
+    current_list_page,
+    list_length,
+    review,
+    is_user_review=False,
+) -> InlineKeyboardMarkup:
     kb_builder = InlineKeyboardBuilder()
     inline_buttons = []
     if current_list_page != 1:
         inline_buttons.append(
-            InlineKeyboardButton(text=LEXICON['pagination_backward'], callback_data='reviews_list_backward'))
-    inline_buttons.append(InlineKeyboardButton(text=f"{current_list_page}/{list_length}",
-                                               callback_data='...'))
+            InlineKeyboardButton(
+                text=LEXICON["pagination_backward"],
+                callback_data="reviews_list_backward",
+            ),
+        )
+
+    inline_buttons.append(
+        InlineKeyboardButton(
+            text=f"{current_list_page}/{list_length}",
+            callback_data="...",
+        ),
+    )
     if current_list_page != list_length:
         inline_buttons.append(
-            InlineKeyboardButton(text=LEXICON['pagination_forward'], callback_data='reviews_list_forward'))
+            InlineKeyboardButton(
+                text=LEXICON["pagination_forward"],
+                callback_data="reviews_list_forward",
+            ),
+        )
+
     kb_builder.row(*inline_buttons, width=3)
     if is_user_review:
         kb_builder.row(
             InlineKeyboardButton(
-                text=LEXICON['redact_review'],
-                callback_data=f'create_review_{review.book_id}'
-            )
+                text=LEXICON["redact_review"],
+                callback_data=f"create_review_{review.book_id}",
+            ),
         )
         kb_builder.row(
-            InlineKeyboardButton(text=LEXICON['delete_review'], callback_data=f'delete_review_{review.review_id}'))
+            InlineKeyboardButton(
+                text=LEXICON["delete_review"],
+                callback_data=f"delete_review_{review.review_id}",
+            ),
+        )
+
     return kb_builder.as_markup()

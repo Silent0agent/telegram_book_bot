@@ -6,4 +6,5 @@ exclude =
     .git/,
     __pycache__,
     env/,
-    venv/
+    venv/,
+    venv_310/

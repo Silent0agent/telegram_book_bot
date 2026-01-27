@@ -8,8 +8,8 @@ import aiofiles
 from aiogram import Bot
 from gtts import gTTS, gTTSError
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from database.db_session import create_session
 from database.models import Audiobook, Book
 from lexicon import LEXICON
 
@@ -23,7 +23,7 @@ async def async_tts_save(text: str, lang: str, path: Path):
         tts = gTTS(text=text, lang=lang)
         await loop.run_in_executor(
             None,
-            lambda: tts.save(str(path)),  # Используем стандартный ThreadPool
+            lambda: tts.save(str(path)),
         )
         return True
     except gTTSError as e:
@@ -40,8 +40,7 @@ async def async_tts_save(text: str, lang: str, path: Path):
 
 async def generate_and_save_audiobook(
     bot: Bot,
-    session: AsyncSession,
-    book: Book,
+    book_id: int,
     user_id: int,
     chat_id: int,
     book_text: str,
@@ -50,12 +49,22 @@ async def generate_and_save_audiobook(
     max_retries: int = 3,
 ):
     """Асинхронная генерация аудиокниги с обработкой ограничений API"""
+    session = None
     audiobook = None
     base_dir = Path("media/audiobooks")
     output_path = None
     main_file = None
 
     try:
+        # Создаем новую сессию для этой задачи
+        session = await create_session()
+
+        # Получаем книгу по ID
+        book = await session.get(Book, book_id)
+        if not book:
+            logger.error(f"Book with id {book_id} not found")
+            return None
+
         if len(book_text) >= 100_000:
             await bot.send_message(
                 chat_id,
@@ -67,6 +76,7 @@ async def generate_and_save_audiobook(
             chat_id,
             LEXICON["gtts_start_generating"].format(book_title=book.title),
         )
+
         # Создаем запись аудиокниги в БД
         audiobook = Audiobook(
             book_id=book.book_id,
@@ -169,7 +179,7 @@ async def generate_and_save_audiobook(
 
         # Проверка, что книга еще существует
         if not await session.scalar(
-            select(Book).where(Book.book_id == book.book_id),
+            select(Book).where(Book.book_id == book_id),
         ):
             output_path.unlink(missing_ok=True)
             return None
@@ -204,8 +214,9 @@ async def generate_and_save_audiobook(
                 file.unlink()
             except Exception as e:
                 logger.exception(f"Error deleting temp file {file}: {e}")
-        # Откатываем БД
-        await session.rollback()
+        # Откатываем БД, если сессия активна
+        if session:
+            await session.rollback()
         # Уведомляем пользователя
         try:
             await bot.send_message(
@@ -216,3 +227,7 @@ async def generate_and_save_audiobook(
             logger.exception("Failed to send error notification to user")
 
         return None
+    finally:
+        # Всегда закрываем сессию
+        if session:
+            await session.close()

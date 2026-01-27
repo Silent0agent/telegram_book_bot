@@ -53,3 +53,16 @@ async def create_session() -> AsyncSession:
         raise RuntimeError("Databese not initialized. Call global_init()")
 
     return __async_factory()
+
+
+async def close_connection_pool():
+    """Закрывает пул соединений при завершении работы"""
+    global __async_factory
+
+    if __async_factory:
+        # Получаем engine из sessionmaker
+        engine = __async_factory.kw.get("bind")
+        if engine:
+            await engine.dispose()
+
+        __async_factory = None

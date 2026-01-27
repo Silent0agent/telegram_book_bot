@@ -479,11 +479,10 @@ async def process_upload_text_file(
         asyncio.create_task(
             generate_and_save_audiobook(
                 bot=bot,
-                book=book,
+                book_id=book.book_id,
                 user_id=message.from_user.id,
                 chat_id=message.chat.id,
                 book_text=await get_book_text(book.book_id),
-                session=session,
             ),
         )
 

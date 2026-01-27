@@ -2,6 +2,7 @@ __all__ = ()
 
 import asyncio
 import logging
+import sys
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -35,13 +36,37 @@ from middlewares.outer import (
 logger = logging.getLogger(__name__)
 
 
+async def close_connections():
+    """Закрываем все соединения с БД"""
+    try:
+        from database.db_session import close_connection_pool
+
+        await close_connection_pool()
+    except Exception as e:
+        logger.error(f"Error closing connections: {e}")
+
+
+async def shutdown(dp: Dispatcher, bot: Bot):
+    """Корректное завершение работы"""
+    logger.info("Shutting down bot...")
+
+    # Останавливаем polling
+    await dp.stop_polling()
+
+    # Закрываем сессию бота
+    await bot.session.close()
+
+    # Закрываем соединения с БД
+    await close_connections()
+
+    logger.info("Bot shutdown complete")
+
+
 # Функция конфигурирования и запуска бота
 async def main():
-    if config.log_level not in logging._nameToLevel:
-        config.log_level = "INFO"
     # Конфигурируем логирование
     logging.basicConfig(
-        level=config.log_level,
+        level=logging.INFO,
         format="%(filename)s:%(lineno)d #%(levelname)-8s "
         "[%(asctime)s] - %(name)s - %(message)s",
     )
@@ -53,6 +78,7 @@ async def main():
     await db_session.global_init("database/books.db")
     database_session = await db_session.create_session()
     await init_genres(database_session)
+    await database_session.close()
 
     session = (
         AiohttpSession(proxy=config.proxy_url) if config.proxy_url else None
@@ -88,9 +114,22 @@ async def main():
     dp.include_router(read_book_handlers.router)
     dp.include_router(other_handlers.router)
 
-    # Пропускаем накопившиеся апдейты и запускаем polling
+    # Пропускаем накопившиеся апдейты
     await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
+
+    try:
+        await dp.start_polling(bot)
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user (KeyboardInterrupt)")
+    except Exception as e:
+        logger.exception(f"Bot stopped with error: {e}")
+    finally:
+        # Гарантируем закрытие ресурсов
+        await shutdown(dp, bot)
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
+    asyncio.run(main())

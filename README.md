@@ -6,7 +6,7 @@ Bookbot is a telegam bot to read books, listen to audiobooks and leave reviews t
 
 Before starting work, make sure that you have installed:
 
-- **Python** (versions 3.9-3.13) - [download](https://www.python.org/downloads/)
+- **Python** (versions 3.10-3.13) - [download](https://www.python.org/downloads/)
 - **Git** - [download](https://git-scm.com/downloads)
 
 ## Project Launch

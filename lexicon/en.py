@@ -168,8 +168,9 @@ LEXICON: dict[str, str] = {
     "ask_for_review_rating": "ℹ️ Enter rating 1-5",
     "gtts_text_too_long": "ℹ️ Your book text is too large for "
     "audio generation. You can add your own audio version via book menu",
-    "gtts_start_generating": "ℹ️ Started generating audiobook {book_title}, "
-    "it will run in background process, so you can use the bot",
+    "gtts_start_generating": "ℹ️ Background generation of the audiobook "
+    "{book_title} has started. While it's in progress, adding bookmarks "
+    "and other database operations may be unavailable.",
     "gtts_api_failure": "⚠️ Speech synthesis service is overloaded. "
     "Try again later or upload audio file manually.",
     # Statuses
@@ -201,7 +202,7 @@ LEXICON_COMMANDS: dict[str, str] = {
 
 DEFAULT_GENRES: list[str] = [
     # Fiction
-    "Science Fiction",
+    "Speculative Fiction",
     "Fantasy",
     "Detective",
     "Thriller",

@@ -124,7 +124,7 @@ async def process_choose_genre(
             [],
             genres_list_page,
             search_by_genres_dict["length"],
-            *all_genres[genres_start_slice:genres_stop_slice,],
+            *all_genres[genres_start_slice:genres_stop_slice],
             confirm_button=False,
         ),
     )
